@@ -142,13 +142,42 @@ The following emails are excluded from all scoring calculations:
 
 ---
 
+## Pipeline (v3, finalized 2026-06-28)
+
+```
+run_pipeline.py --date YYYY-MM-DD
+
+Step 1: iifr_ecp_rescore_v3.py             → base scores (Bigin signals)
+Step 2: iifr_ecp_rescore_v3_postprocess.py  → + Calendly/Webinar (+10/+15)
+Step 3: iifr_wa_signal_scorer.py             → + WA signals (crm-messaging.cloud)
+Step 4: consolidate_scores.py                 → final_scores.csv (all sources, ranked)
+```
+
+**Outputs:**
+- `cron/output/scoring/{date}/final_scores.csv` — all leads, ranked by final_score
+- `cron/output/scoring/{date}/final_scores_summary.json` — tier dist + firehot + top 20
+- `~/Documents/Mac Mini Sync/Lyra sync/iifr-ecp-wa/wa_signals.csv` — WA signals
+
+**Consolidation run 2026-06-28:**
+| Tier | Count |
+|---|---|
+| firehot | 3 |
+| hot | 95 |
+| warm | 354 |
+| cold | 248 |
+
+firehot: Ridhima Gupta (27.0), Abhishek Somani (26.0), Dr.A.Ramamoorthy Mathematics (21.0)
+WA-matched leads: 330 | Calendly/Webinar: 25
+
+---
+
 ## Changelog
 
 | Date | Change |
 |---|---|
-| 2026-06-28 | v3 finalized: email log scale, WA last10 matching, firehot threshold 20+ |
-| 2026-06-28 | WA fail held at 0 (was -1, blocked) |
-| 2026-06-28 | WA read reduced to +2 (was +3) |
-| 2026-06-28 | Webinar bonus +15 additive (was replacing Calendly) |
-| 2026-06-28 | Calendly bonus +10 additive |
-| 2026-06-28 | Email formula: `2×ln(1+n)` no cap (was band×1.2 capped at 4.0) |
+| 2026-06-28 | New `consolidate_scores.py` — merge all 3 sources into final_scores.csv |
+| 2026-06-28 | `postprocess.py` gains `--date` arg; hardcoded path removed |
+| 2026-06-28 | WA scorer docstring fixed: actual values (+2/0/+5) now match constants |
+| 2026-06-28 | v3 finalized: email log scale, WA last10 matching, firehot ≥20 |
+| 2026-06-28 | WA fail held at 0; WA read +2, WA reply +5 |
+| 2026-06-28 | Calendly +10, Webinar +15, additive |

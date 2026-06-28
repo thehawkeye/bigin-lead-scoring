@@ -4,16 +4,20 @@ iifr_ecp_rescore_v3_postprocess.py
 Apply Murali's out-of-band signal overrides to the v3 re-score output.
 
 Signals applied (additive on top of v3 composite score):
-  Calendly discovery call booked (Murali table, 2026-06-28): +10
-  Webinar attended (Murali list, 2026-06-28):              +15
+  Calendly discovery call booked: +10
+  Webinar attended:               +15
 
 Run AFTER iifr_ecp_rescore_v3.py
 
-Outputs:
-  rescore_v3_leads_override.csv   — same columns + override_bonus, override_reason, new_score, new_tier
-  rescore_v3_summary_override.json — tier distribution with overrides applied
+Usage:
+    python3 iifr_ecp_rescore_v3_postprocess.py [--date YYYY-MM-DD]
+
+Inputs:  cron/output/scoring/{date}/rescore_v3_leads.csv
+Outputs: cron/output/scoring/{date}/rescore_v3_leads_override.csv
+         cron/output/scoring/{date}/rescore_v3_summary_override.json
 """
 
+import argparse
 import csv
 import json
 import sys
@@ -24,26 +28,22 @@ from pathlib import Path
 IST = timezone(timedelta(hours=5, minutes=30))
 
 # ── Overrides ──────────────────────────────────────────────────────────────────
-# Calendly discovery calls booked (Murali's table, 2026-06-28)
-# +10 additive
+# Calendly discovery calls booked (+10 additive)
 CAL_OVERRIDES = {
     "1325466000000488112": "Calendly: Dr Sachin Gulati (12 Jun)",
     "1325466000000507098": "Calendly: Shilpa Smart (13 Jun)",
     "1325466000000521334": "Calendly: Rachana Dedhia (15 Jun)",
-    # Pradeep Deshpande 15 Jun — not found in Bigin
     "1325466000000508027": "Calendly: Amit Singh (16 Jun)",
     "1325466000000506626": "Calendly: Ashok Patil (17 Jun)",
     "1325466000000488126": "Calendly: Ridhima Gupta (17 Jun)",
     "1325466000000530207": "Calendly: syeda zehra (20 Jun)",
     "1325466000000529424": "Calendly: Dr.Amol Neve (23 Jun)",
     "1325466000000553575": "Calendly: Rahul Kumar Behera (24 Jun)",
-    # Ashok Patil 25 Jun — repeat, already counted
     "1325466000000548114": "Calendly: Abhishek Somani (26 Jun)",
     "1325466000000548097": "Calendly: Kasturi Pomal (27 Jun)",
 }
 
-# Webinar attendees (Murali list, 2026-06-28)
-# +15 additive
+# Webinar attendees (+15 additive)
 WEB_OVERRIDES = {
     "1325466000000520995": "Webinar: Niti Pathak",
     "1325466000000564399": "Webinar: Dr.A.Ramamoorthy Mathematics",
@@ -63,16 +63,16 @@ WEB_OVERRIDES = {
     "1325466000000488126": "Webinar: Ridhima Gupta",
 }
 
-# Not found in Bigin (flagged):
-#   Kamini Veeresh, IK Singh, Pradeep Deshpande
+# Not found in Bigin (flagged): Kamini Veeresh, IK Singh, Pradeep Deshpande
 
 CAL_BONUS = 10
 WEB_BONUS = 15
 
-# Tier thresholds (updated 2026-06-28: firehot raised to 20+
-# Rationale: webinar-only (15) lands in hot; only composite multi-signal leads
-# (webinar + calendly or 2+ signals) reach firehot)
-TIER_THRESHOLDS = [(20, "firehot"), (10, "hot"), (5, "hot"), (1, "warm"), (0, "cold")]
+# Tier thresholds (firehot ≥ 20; updated 2026-06-28)
+TIER_THRESHOLDS = [
+    (20, "firehot"), (10, "hot"), (5, "hot"), (1, "warm"), (0, "cold")
+]
+
 
 def tier_from_score(score: float) -> str:
     for lower_bound, name in TIER_THRESHOLDS:
@@ -80,25 +80,47 @@ def tier_from_score(score: float) -> str:
             return name
     return "cold"
 
-# ── Main ──────────────────────────────────────────────────────────────────────
 
-INPUT_CSV  = Path("~/.hermes/profiles/iifr-ecp-marketing/cron/output/scoring/2026-06-28/rescore_v3_leads.csv").expanduser()
-OUTPUT_DIR = INPUT_CSV.parent
+# ── Paths ───────────────────────────────────────────────────────────────────────
 
-def main():
+PROFILE_DIR = Path("~/.hermes/profiles/iifr-ecp-marketing").expanduser()
+CRON_OUTPUT = PROFILE_DIR / "cron" / "output" / "scoring"
+
+
+def make_parser():
+    p = argparse.ArgumentParser(description="Apply Calendly/Webinar overrides to v3 scores")
+    p.add_argument(
+        "--date",
+        default=datetime.now().strftime("%Y-%m-%d"),
+        help="Date folder (YYYY-MM-DD). Default: today.",
+    )
+    return p
+
+
+# ── Main ───────────────────────────────────────────────────────────────────────
+
+def main() -> int:
+    args = make_parser().parse_args()
+    date = args.date
+
+    run_dir = CRON_OUTPUT / date
+    input_csv = run_dir / "rescore_v3_leads.csv"
+    if not input_csv.exists():
+        print(f"[ERROR] {input_csv} not found — run iifr_ecp_rescore_v3.py first", file=sys.stderr)
+        return 1
+
     rows = []
-    with open(INPUT_CSV) as f:
+    with open(input_csv) as f:
         for row in csv.DictReader(f):
             rows.append(row)
 
-    print(f"Loaded {len(rows)} leads from {INPUT_CSV.name}")
+    print(f"Loaded {len(rows)} leads from {input_csv.name}")
 
     # Apply overrides
     changed = 0
     for row in rows:
         did = row.get("deal_id", "")
         base_score = float(row.get("score") or 0)
-
         bonus = 0
         reasons = []
 
@@ -111,10 +133,8 @@ def main():
 
         row["override_bonus"] = bonus
         row["override_reason"] = " | ".join(reasons) if reasons else ""
-
-        new_score = round(base_score + bonus, 2)
-        row["new_score"] = new_score
-        row["new_tier"] = tier_from_score(new_score)
+        row["new_score"] = round(base_score + bonus, 2)
+        row["new_tier"] = tier_from_score(row["new_score"])
 
         if bonus > 0:
             changed += 1
@@ -122,12 +142,14 @@ def main():
     # Summary
     orig_dist  = Counter(tier_from_score(float(r.get("score") or 0)) for r in rows)
     new_dist   = Counter(r["new_tier"] for r in rows)
-    by_source  = Counter(r.get("lead_source", "(unknown)").strip() or "(unknown)" for r in rows)
+    by_source  = Counter(
+        r.get("lead_source", "").strip() or "(unknown)" for r in rows
+    )
     firehot_leads = [r for r in rows if r["new_tier"] == "firehot"]
     hot_leads     = [r for r in rows if r["new_tier"] == "hot"]
 
     # Write CSV
-    out_csv = OUTPUT_DIR / "rescore_v3_leads_override.csv"
+    out_csv = run_dir / "rescore_v3_leads_override.csv"
     cols = list(rows[0].keys())
     with open(out_csv, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
@@ -136,27 +158,28 @@ def main():
             w.writerow(r)
 
     summary = {
+        "date": date,
         "total_leads": len(rows),
         "overrides_applied": changed,
         "orig_tier_distribution": dict(orig_dist),
         "new_tier_distribution": dict(new_dist),
         "firehot_leads": [
             {"deal_id": r["deal_id"], "deal_name": r["deal_name"],
-             "email": r["email"], "new_score": r["new_score"], "new_tier": r["new_tier"],
-             "override_reason": r["override_reason"]}
+             "email": r["email"], "new_score": r["new_score"],
+             "new_tier": r["new_tier"], "override_reason": r["override_reason"]}
             for r in firehot_leads
         ],
         "hot_leads": [
             {"deal_id": r["deal_id"], "deal_name": r["deal_name"],
-             "email": r["email"], "new_score": r["new_score"], "new_tier": r["new_tier"],
-             "override_reason": r["override_reason"]}
-            for r in hot_leads
+             "email": r["email"], "new_score": r["new_score"],
+             "new_tier": r["new_tier"], "override_reason": r["override_reason"]}
+            for r in hot_leads if r["override_bonus"] > 0
         ],
         "by_source": dict(sorted(by_source.items(), key=lambda x: -x[1])),
         "not_found_in_bigin": ["Kamini Veeresh", "IK Singh", "Pradeep Deshpande"],
     }
 
-    out_json = OUTPUT_DIR / "rescore_v3_summary_override.json"
+    out_json = run_dir / "rescore_v3_summary_override.json"
     out_json.write_text(json.dumps(summary, indent=2, ensure_ascii=False))
 
     print(f"\nOverrides applied: {changed}")
@@ -167,10 +190,13 @@ def main():
     print(f"\nFirehot ({len(firehot_leads)}):")
     for r in firehot_leads:
         print(f"  {r['deal_name']} | score={r['new_score']} | {r['override_reason']}")
-    print(f"\nNew Hot ({len([r for r in hot_leads if r['override_bonus']>0])}):")
+    print(f"\nHot with override ({len([r for r in hot_leads if r['override_bonus']>0])}):")
     for r in hot_leads:
         if r["override_bonus"] > 0:
             print(f"  {r['deal_name']} | score={r['new_score']} | {r['override_reason']}")
 
+    return 0
+
+
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

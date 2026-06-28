@@ -6,11 +6,11 @@ Data:   GET https://app.crm-messaging.cloud/index.php/Api/messageHistory
 Auth:   Bearer token from scripts/.env → CRM_MESSAGING_API_KEY
 
 Signal rules (from lead-scoring-v3-canonical.md):
-  WA read   → +3  (OUTGOING msg with deliveryStatus == "read")
-  WA reply  → +5  (INCOMING msg from lead)  [PENDING Murali approval]
-  WA fail   → -1  (OUTGOING msg with deliveryStatus == "failed")
+  WA read   → +2  (OUTGOING msg with deliveryStatus == "read")  # reduced per Murali 2026-06-28
+  WA reply  → +5  (INCOMING msg from lead)  # approved per Murali 2026-06-28
+  WA fail   →  0  (held — no penalty; approved per Murali 2026-06-28)
 
-Matching: Bigin masked Phone === crm-messaging "to" field (both +91X****XXXX)
+Matching: last-10-digits (Bigin and crm-messaging mask differently — see docs/phone-matching.md)
 
 Usage:
     python3.11 iifr_wa_signal_scorer.py
@@ -145,9 +145,9 @@ def _fetch_bigin_deals() -> dict:
 
 def score_wa_signals(messages: list, by_phone: dict) -> list:
     """
-    WA read:  OUTGOING + deliveryStatus=="read"  → +3
-    WA reply: INCOMING                         → 0 (pending Murali approval)
-    WA fail:  OUTGOING + deliveryStatus=="failed" → -1
+    WA read:  OUTGOING + deliveryStatus=="read"  → +2
+    WA reply: INCOMING                         → +5 (approved per Murali 2026-06-28)
+    WA fail:  OUTGOING + deliveryStatus=="failed" →  0 (held — no penalty)
     """
     wa_data = defaultdict(lambda: {
         "wa_read": False, "wa_reply": False, "wa_fail": False,

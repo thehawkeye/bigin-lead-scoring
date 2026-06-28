@@ -1,0 +1,18 @@
+# Credentials
+.env
+*.json
+
+# Outputs
+cron/
+output/
+*.csv
+*.json
+
+# macOS
+.DS_Store
+__pycache__/
+*.pyc
+
+# IDE
+.vscode/
+.idea/

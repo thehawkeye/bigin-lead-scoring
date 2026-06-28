@@ -29,7 +29,7 @@ final_score = base_score + calendly_bonus + webinar_bonus + wa_score
 
 base_score  = email_score + click_bonus + stage_bonus + tag_bonus
 email_score = 2 × ln(1 + cumulative_open_count)   [no cap]
-click_bonus = +1 if any click else 0
+click_bonus = +2 if any click else 0
 
 calendly_bonus = +10 (Calendly discovery call booked)
 webinar_bonus  = +15 (Webinar attended)
@@ -73,4 +73,4 @@ Update this before changing any scoring logic.
 | 2026-06-28 | v3 finalized: email log scale, WA last10 matching, firehot ≥20 |
 | 2026-06-28 | WA fail held at 0; WA read +2, WA reply +5 |
 | 2026-06-28 | New `consolidate_scores.py` merges all 3 sources |
-| 2026-06-28 | postprocess gains `--date` arg; hardcoded path removed |
+| 2026-06-28 | Click bonus: +2 (was +1) |

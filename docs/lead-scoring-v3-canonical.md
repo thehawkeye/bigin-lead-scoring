@@ -38,7 +38,7 @@ Formula: `2 × ln(1 + cumulative_open_count)` — log scale, no hard cap (update
 
 > Rationale: log scale provides diminishing returns. Email alone can reach hot (10+) but never firehot (20+). Calendly and Webinar remain dominant qualifiers.
 
-**Clicks:** `+1` if any click event exists (binary, no count weighting).
+**Clicks:** `+2` if any click event exists (binary, no count weighting).
 
 ---
 
@@ -175,7 +175,7 @@ WA-matched leads: 330 | Calendly/Webinar: 25
 
 | Date | Change |
 |---|---|
-| 2026-06-28 | New `consolidate_scores.py` — merge all 3 sources into final_scores.csv |
+| 2026-06-28 | Click bonus: +2 (was +1) |
 | 2026-06-28 | `postprocess.py` gains `--date` arg; hardcoded path removed |
 | 2026-06-28 | WA scorer docstring fixed: actual values (+2/0/+5) now match constants |
 | 2026-06-28 | v3 finalized: email log scale, WA last10 matching, firehot ≥20 |

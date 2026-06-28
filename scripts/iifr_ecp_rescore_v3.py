@@ -711,7 +711,7 @@ def compute_lead_score(
     momentum: int,
 ) -> dict:
     open_delta = float(email_signals.get("open_delta_total") or 0.0)
-    click_bonus = 1 if (email_signals.get("click_count") or 0) > 0 else 0
+    click_bonus = 2 if (email_signals.get("click_count") or 0) > 0 else 0
     wa_read_pts = 3 if wa_read else 0
     wa_nd_pts = -1 if wa_not_delivered else 0
     cal_attended_pts = 10 if calendly_attended else 0
@@ -732,7 +732,7 @@ def compute_lead_score(
     if open_delta > 0:
         reasons.append(f"open_delta={open_delta}")
     if click_bonus:
-        reasons.append("click_bonus=+1")
+        reasons.append("click_bonus=+2")
     if wa_read:
         reasons.append("wa_read=+3")
     if wa_not_delivered:
